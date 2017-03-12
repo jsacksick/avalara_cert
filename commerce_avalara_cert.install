@@ -1,0 +1,42 @@
+<?php
+
+/**
+ * @file
+ * Installation functions for the Commerce Avalara CertCapture module.
+ */
+
+/**
+ * Implements hook_install().
+ */
+function commerce_avalara_cert_install() {
+  // Stores the Avalara CertCapture customer code.
+  $field_name = 'commerce_avalara_customer_code';
+  // Create the field and instance if they do not exist.
+  if (!field_info_field($field_name)) {
+    field_create_field(array(
+      'cardinality' => 1,
+      'field_name' => $field_name,
+      'type' => 'text',
+    ));
+  }
+  if (!field_info_instance('user', $field_name, 'user')) {
+    field_create_instance(array(
+      'bundle' => 'user',
+      'display' => array(),
+      'entity_type' => 'user',
+      'field_name' => $field_name,
+      'label' => 'Customer code (Avalara)',
+      'required' => 0,
+      'settings' => array(
+        'user_register_form' => 0,
+      ),
+      'widget' => array(
+        'active' => 1,
+        'module' => 'text',
+        'settings' => array(),
+        'type' => 'text_textfield',
+        'weight' => 7,
+      ),
+    ));
+  }
+}

@@ -1,0 +1,156 @@
+<?php
+
+/**
+ * @file
+ * Avalara CertCapture service integration from Avalara, Inc.
+ */
+
+/**
+ * Implements hook_menu().
+ */
+function commerce_avalara_cert_menu() {
+  $items = array();
+
+  $items['admin/commerce/config/avalara-cert'] = array(
+    'title' => 'Avalara CertCapture ',
+    'description' => 'Avalara CertCapture Configuration',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('commerce_avalara_cert_settings_form'),
+    'file' => 'includes/commerce_avalara_cert.admin.inc',
+    'access arguments' => array('administer commerce_avalara_cert'),
+    'type' => MENU_NORMAL_ITEM,
+  );
+
+  $items['user/%user/tax-certificates'] = array(
+    'title' => 'Tax certificates',
+    'page callback' => 'commerce_avalara_cert_user_page',
+    'page arguments' => array(1),
+    'access callback' => 'commerce_avalara_cert_user_page_access',
+    'type' => MENU_LOCAL_TASK,
+    'file' => 'includes/commerce_avalara_cert.user.inc',
+    'weight' => 20,
+  );
+
+  $items['avalara-cert/%/download'] = array(
+    'access callback' => TRUE,
+    'page callback' => 'commerce_avalara_cert_download',
+    'page arguments' => array(1),
+    'file' => 'includes/commerce_avalara_cert.user.inc',
+    'type' => MENU_CALLBACK,
+  );
+
+  return $items;
+}
+
+/**
+ * Access callback: determines access to the "Tax certificates" user page.
+ */
+function commerce_avalara_cert_user_page_access() {
+  if (user_access('administer commerce_avalara_cert')) {
+    return TRUE;
+  }
+
+  return user_access('view own tax certificates');
+}
+
+/**
+ * Implements hook_permission().
+ */
+function commerce_avalara_cert_permission() {
+  return array(
+    'administer commerce_avalara_cert' => array(
+      'title' => t('Administer Avalara CertCapture'),
+      'description' => t('Allows users to configure Commerce Avalara CertCapture.'),
+      'restrict access' => TRUE,
+    ),
+    'view own tax certificates' => array(
+      'title' => t('View own tax certificates'),
+      'description' => t('Allows users to view their own tax certificates.'),
+      'restrict access' => TRUE,
+    ),
+  );
+}
+
+/**
+ * Returns the Avalara CertCapture username.
+ */
+function commerce_avalara_cert_username() {
+  return variable_get('commerce_avalara_cert_username', '');
+}
+
+/**
+ * Returns the Avalara CertCapture password.
+ */
+function commerce_avalara_cert_password() {
+  return variable_get('commerce_avalara_cert_password', '');
+}
+
+/**
+ * Returns the configured client_id.
+ */
+function commerce_avalara_cert_client_id() {
+  return variable_get('commerce_avalara_cert_client_id', '');
+}
+
+/**
+ * Returns a statically cached instance of an AvalaraCert object.
+ *
+ * @param string $api_key
+ *   The API key to use to submit requests to the Avatax API.
+ * @param string $client_id
+ *   The client_id, accessible from the "Company settings" page.
+ *
+ * @return AvalaraCert|bool.
+ *   The constructed object or FALSE if the library could not be loaded.
+ */
+function commerce_avalara_cert_object($api_key = '', $client_id = '') {
+  $avalara = &drupal_static(__FUNCTION__, array());
+
+  // If the API key wasn't provided.
+  if (empty($api_key)) {
+    $username = commerce_avalara_cert_username();
+    $password = commerce_avalara_cert_password();
+
+    if (!empty($username) && !empty($password)) {
+      $api_key = base64_encode("$username:$password");
+    }
+    else {
+      return FALSE;
+    }
+  }
+
+  // Defaults the client_id to the one configured if not specified.
+  $client_id = $client_id ? $client_id : commerce_avalara_cert_client_id();
+
+  if (empty($client_id)) {
+    return FALSE;
+  }
+
+  if (!isset($avalara[$api_key])) {
+    $logger = NULL;
+    $headers = array(
+      'x-client-id' => $client_id,
+      // Use the customer_number for reference.
+      'x-customer-primary-key' => 'customer_number',
+    );
+
+    // Specify the logger if the logging was enabled.
+    if (variable_get('commerce_avalara_cert_logging', FALSE)) {
+      $logger = 'watchdog';
+    }
+
+    $avalara[$api_key] = new AvalaraCert($api_key, $logger, $headers);
+  }
+
+  return $avalara[$api_key];
+}
+
+/**
+ * Implements hook_field_access().
+ */
+function commerce_avalara_cert_field_access($op, $field, $entity_type, $entity, $account) {
+  // Hide the customer code field.
+  if ($field['field_name'] == 'commerce_avalara_customer_code' && $op == 'edit') {
+    return user_access('administer commerce_avalara_cert', $account);
+  }
+}

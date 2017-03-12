@@ -1,0 +1,8 @@
+name = Commerce Avalara CertCapture
+description = Drupal Commerce Connector for Avalara CertCapture
+package = Commerce (Tax)
+core = 7.x
+configure = admin/commerce/config/avalara-cert
+
+files[] = lib/AvalaraCert.php
+files[] = lib/AvalaraCertExceptions.php
