@@ -43,6 +43,115 @@ function commerce_avalara_cert_menu() {
 }
 
 /**
+ * Implements hook_theme().
+ */
+function commerce_avalara_cert_theme($existing, $type, $theme, $path) {
+  return array(
+    'commerce_avalara_cert_user_certificates' => array(
+      'variables' => array(
+        'customer_code' => NULL,
+        'table' => '',
+      ),
+      'template' => 'commerce-avalara-cert-user-certificates',
+      'path' => $path . '/theme',
+    ),
+  );
+}
+
+/**
+ * Preprocess variables for commerce-avalara-cert-user-certificates.tpl.php.
+ */
+function template_preprocess_commerce_avalara_cert_user_certificates(&$variables) {
+  $variables['table'] = array(
+    '#theme' => 'table',
+    '#header' => array(
+      t('State'),
+      t('Signed date'),
+      t('Expiration date'),
+      t('Status'),
+      t('View'),
+    ),
+    '#rows' => array(),
+  );
+  $empty_message = t('No tax certificates could be found.');
+
+  if (empty($variables['customer_code'])) {
+    $variables['table']['#empty'] = $empty_message;
+    return;
+  }
+
+  // Add the customer code as a JS setting.
+  drupal_add_js(array('commerce_avalara_cert' => array('customer_number' => $variables['customer_code'])), 'setting');
+
+  // Consider the JS SDK as non present by default.
+  $sdk_present = FALSE;
+  $registration_key = variable_get('commerce_avalara_cert_registration_key', '');
+  $client_id = commerce_avalara_cert_client_id();
+
+  // Add the JS SDK and the "Renew" table header in case we have a registration
+  // key.
+  if (!empty($registration_key) && !empty($client_id)) {
+    $sdk_present = TRUE;
+    $client_id = check_plain($client_id);
+    $registration_key = check_plain($registration_key);
+    $variables['table']['#header'][] = t('Renew');
+    drupal_add_library('system', 'ui.dialog');
+    drupal_add_js(drupal_get_path('module', 'commerce_avalara_cert') . '/js/commerce_avalara_cert.user.js');
+    drupal_add_js("https://app.certcapture.com/gencert2/js?cid=$client_id&key=$registration_key", 'external');
+  }
+
+  try {
+    $avalara = commerce_avalara_cert_object();
+    $exempt_reasons = $avalara->customersGetExemptReasons($variables['customer_code']);
+
+    foreach ($exempt_reasons as $exempt_reason) {
+      $tax_code_name = $exempt_reason['actual_tax_code']['name'];
+
+      $status = t('Valid');
+      // Logic stolen from the Avalara code sample.
+      if (substr($tax_code_name, 0, 8) == 'EXPOSURE' || substr($tax_code_name, 0, 7) == 'TAXABLE') {
+        if (substr($tax_code_name, 0, 8) == "EXPOSURE"){
+          $status = substr($tax_code_name, 10, 25);
+        }
+        else {
+          $status = t('TAXABLE');
+        }
+      }
+
+      $row = array(
+        $exempt_reason['exposure_zone']['name'],
+        $exempt_reason['certificate']['signed_date'],
+        $exempt_reason['certificate']['expiration_date'],
+        $status,
+        l('View', 'avalara-cert/' . $exempt_reason['certificate']['id'] . '/download'),
+      );
+
+      // If the SDK is present, add the renew link.
+      if ($sdk_present) {
+        $renew_link_options = array(
+          'external' => TRUE,
+          'attributes' => array(
+            'data-state' => $exempt_reason['exposure_zone']['name'],
+            'class' => array(
+              'commerce-avalara-cert-renew',
+            ),
+          ),
+        );
+        $row[] = l('Renew', '#', $renew_link_options);
+      }
+
+      $variables['table']['#rows'][] = $row;
+    }
+  }
+  catch (Exception $e) {
+  }
+
+  if (empty($variables['table']['#rows'])) {
+    $variables['table']['table']['#empty'] = t('No tax certificates could be found.');
+  }
+}
+
+/**
  * Access callback: determines access to the "Tax certificates" user page.
  */
 function commerce_avalara_cert_user_page_access() {

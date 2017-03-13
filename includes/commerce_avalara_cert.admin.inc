@@ -32,6 +32,21 @@ function commerce_avalara_cert_settings_form($form, &$form_state) {
     '#required' => TRUE,
   );
 
+  $form['commerce_avalara_cert_client_id'] = array(
+    '#title' => t('Client ID'),
+    '#description' => t('Your CertCapture Client ID, which can be found in your CertCapture account under Company Settings > Company Details >  Client Information.'),
+    '#type' => 'textfield',
+    '#default_value' => variable_get('commerce_avalara_cert_client_id', ''),
+    '#required' => TRUE,
+  );
+
+  $form['commerce_avalara_cert_registration_key'] = array(
+    '#title' => t('Registration Key'),
+    '#description' => t('Your CertCapture Registration Key, which can be found in your CertCapture account under Company Settings > Company Details > Webportal Registration.'),
+    '#type' => 'textfield',
+    '#default_value' => variable_get('commerce_avalara_cert_registration_key', ''),
+  );
+
   $form['commerce_avalara_cert_logging'] = array(
     '#title' => t('Enable logging?'),
     '#description' => t('Enables detailed logging.'),

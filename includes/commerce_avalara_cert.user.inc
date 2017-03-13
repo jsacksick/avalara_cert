@@ -4,17 +4,6 @@
  * Page callback for listing tax exemption certificates for the current user.
  */
 function commerce_avalara_cert_user_page($account) {
-  $build = array(
-    '#theme' => 'table',
-    '#header' => array(
-      t('State'),
-      t('Signed date'),
-      t('Expiration date'),
-      t('Status'),
-      t('View'),
-    ),
-    '#rows' => array(),
-  );
   $account_wrapper = entity_metadata_wrapper('user', $account);
   $empty_message = t('No tax certificates could be found.');
   $customer_code = '';
@@ -26,40 +15,13 @@ function commerce_avalara_cert_user_page($account) {
 
   // If the customer code is not configured, display an empty message.
   if (empty($customer_code)) {
-    $build['#empty'] = $empty_message;
-    return $build;
+    return $empty_message;
   }
 
-  try {
-    $avalara = commerce_avalara_cert_object();
-    $exempt_reasons = $avalara->customersGetExemptReasons($customer_code);
-
-    foreach ($exempt_reasons as $exempt_reason) {
-      $tax_code_name = $exempt_reason['actual_tax_code']['name'];
-
-      $status = t('Valid');
-      // Logic stolen from the Avalara code sample.
-      if (substr($tax_code_name, 0, 8) == 'EXPOSURE' || substr($tax_code_name, 0, 7) == 'TAXABLE') {
-        $status = t('Exposure');
-      }
-
-      $build['#rows'][] = array(
-        $exempt_reason['exposure_zone']['name'],
-        $exempt_reason['certificate']['signed_date'],
-        $exempt_reason['certificate']['expiration_date'],
-        $status,
-        l('View', 'avalara-cert/' . $exempt_reason['certificate']['id'] . '/download'),
-      );
-    }
-  }
-  catch (Exception $e) {
-  }
-
-  if (empty($build['#rows'])) {
-    $build['#empty'] = t('No tax certificates could be found.');
-  }
-
-  return $build;
+  return array(
+    '#theme' => 'commerce_avalara_cert_user_certificates',
+    '#customer_code' => $customer_code,
+  );
 }
 
 /**
