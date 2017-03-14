@@ -6,21 +6,21 @@
 function commerce_avalara_cert_user_page($account) {
   $account_wrapper = entity_metadata_wrapper('user', $account);
   $empty_message = t('No tax certificates could be found.');
-  $customer_code = '';
+  $customer_number = '';
 
   // Check if the customer code is not empty.
   if (isset($account_wrapper->commerce_avalara_customer_number)) {
-    $customer_code = $account_wrapper->commerce_avalara_customer_number->value();
+    $customer_number = $account_wrapper->commerce_avalara_customer_number->value();
   }
 
   // If the customer code is not configured, display an empty message.
-  if (empty($customer_code)) {
+  if (empty($customer_number)) {
     return $empty_message;
   }
 
   return array(
     '#theme' => 'commerce_avalara_cert_user_certificates',
-    '#customer_code' => $customer_code,
+    '#customer_number' => $customer_number,
   );
 }
 

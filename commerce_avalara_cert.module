@@ -41,6 +41,14 @@ function commerce_avalara_cert_menu() {
     'type' => MENU_CALLBACK,
   );
 
+  $items['avalara-cert/ajax-checkout'] = array(
+    'delivery callback' => 'ajax_deliver',
+    'theme callback' => 'ajax_base_page_theme',
+    'page callback' => 'commerce_avalara_cert_checkout_ajax',
+    'access callback' => TRUE,
+    'type' => MENU_CALLBACK,
+  );
+
   return $items;
 }
 
@@ -72,17 +80,78 @@ function commerce_avalara_cert_download_access($account) {
 }
 
 /**
+ * Ajax callback for the "create certificate" link.
+ */
+function commerce_avalara_cert_checkout_ajax() {
+  if (user_is_anonymous()) {
+    return MENU_NOT_FOUND;
+  }
+  $commands = array();
+  global $user;
+  $account = user_load($user->uid);
+  $account_wrapper = entity_metadata_wrapper('user', $account);
+  $customer_number = $account_wrapper->commerce_avalara_customer_number->value();
+  $error = FALSE;
+
+  // If we don't have a customer number, we need to call Avalara to create one.
+  if (empty($customer_number)) {
+    try {
+      $avalara = commerce_avalara_cert_object();
+      $result = $avalara->customersGenerateNumber();
+
+      if (isset($result['customer_number'])) {
+        $result = $avalara->customersCreate(array('customer_number' => $result['customer_number']));
+
+        // If we got an ID back from Avalara, this mean the user got created,
+        // in that case, we need to save it.
+        if (isset($result['id'])) {
+          $customer_number = $result['customer_number'];
+          $account_wrapper->commerce_avalara_customer_number->set($customer_number);
+          $account_wrapper->save();
+        }
+      }
+    }
+    catch (Exception $e) {
+      watchdog_exception('commerce_avalara_cert', $e);
+      $error = TRUE;
+    }
+  }
+
+  // We should probably display an error message in case something went wrong.
+  if ($error || empty($customer_number)) {
+    return MENU_NOT_FOUND;
+  }
+
+  // Open a modal containing the certificate submission form.
+  $commands[] = array(
+    'command' => 'commerce_avalara_cert_checkout_modal_display',
+    'selector' => '#commerce-avalara-cert-checkout-dialog',
+    'initSettings' => array(
+      'customer_number' => $customer_number,
+    ),
+  );
+  drupal_alter('commerce_avalara_cert_checkout_ajax_commands', $commands, $account);
+  return array('#type' => 'ajax', '#commands' => $commands);
+}
+
+/**
  * Implements hook_theme().
  */
 function commerce_avalara_cert_theme($existing, $type, $theme, $path) {
   return array(
     'commerce_avalara_cert_user_certificates' => array(
       'variables' => array(
-        'customer_code' => NULL,
+        'customer_number' => NULL,
         'table' => '',
       ),
       'template' => 'commerce-avalara-cert-user-certificates',
       'path' => $path . '/theme',
+    ),
+    'commerce_avalara_cert_checkout' => array(
+      'variables' => array(
+        'ship_zone' => NULL,
+        'customer_number' => NULL,
+      ),
     ),
   );
 }
@@ -178,6 +247,62 @@ function template_preprocess_commerce_avalara_cert_user_certificates(&$variables
   if (empty($variables['table']['#rows'])) {
     $variables['table']['table']['#empty'] = t('No tax certificates could be found.');
   }
+}
+
+/**
+ * Themes the line item manager widget form element.
+ */
+function theme_commerce_avalara_cert_checkout($variables) {
+  $registration_key = variable_get('commerce_avalara_cert_registration_key', '');
+  $client_id = commerce_avalara_cert_client_id();
+  // We need a customer code, a ship zone, a registration key & a client ID.
+  if (user_is_anonymous() || empty($variables['ship_zone']) || empty($registration_key) || empty($client_id)) {
+    return '';
+  }
+  $build = array(
+    'certificate_dialog' => array(
+      '#theme' => 'html_tag',
+      '#tag' => 'div',
+      '#value' => '',
+      '#attributes' => array(
+        'id' => 'commerce-avalara-cert-checkout-dialog',
+      )
+    ),
+    'certificate_link' => array(
+      '#text' => t('Submit a Certificate'),
+      '#theme' => 'link',
+      '#path' => url('avalara-cert/ajax-checkout'),
+      '#options' => array(
+        'attributes' => array(
+          'class' => array(
+            'use-ajax',
+            'commerce-avalara-cert-submit-certificate',
+          ),
+        ),
+        'html' => FALSE,
+      ),
+    ),
+    '#attached' => array(
+      'library' => array(
+        array('system', 'drupal.ajax'),
+        array('system', 'ui.dialog'),
+      ),
+      'js' => array(
+        drupal_get_path('module', 'commerce_avalara_cert') . '/js/commerce_avalara_cert.checkout.js',
+        "https://app.certcapture.com/gencert2/js?cid=$client_id&key=$registration_key",
+        array(
+          'data' => array(
+            'commerce_avalara_cert' => array(
+              'shipZone' => check_plain($variables['ship_zone']),
+            ),
+          ),
+          'type' => 'setting'
+        )
+      ),
+    ),
+  );
+
+  return drupal_render($build);
 }
 
 /**

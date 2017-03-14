@@ -39,3 +39,4 @@ function commerce_avalara_cert_install() {
       ),
     ));
   }
+}
