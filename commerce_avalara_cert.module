@@ -33,14 +33,42 @@ function commerce_avalara_cert_menu() {
   );
 
   $items['avalara-cert/%/download'] = array(
-    'access callback' => TRUE,
     'page callback' => 'commerce_avalara_cert_download',
     'page arguments' => array(1),
+    'access callback' => 'commerce_avalara_cert_download_access',
+    'access arguments' => array(1),
     'file' => 'includes/commerce_avalara_cert.user.inc',
     'type' => MENU_CALLBACK,
   );
 
   return $items;
+}
+
+/**
+ * Access callback: determines access to the "Tax certificates" user page.
+ */
+function commerce_avalara_cert_user_page_access($account) {
+  if (user_access('administer commerce_avalara_cert')) {
+    return TRUE;
+  }
+  global $user;
+
+  // If the user doesn't have the "administer commerce_avalara_cert" permission
+  // & passed account is not the same as the logged in user, return FALSE.
+  if ($account->uid != $user->uid) {
+    return FALSE;
+  }
+
+  return user_access('view own tax certificates');
+}
+
+
+/**
+ * Access callback: determines access to download certificate.
+ */
+function commerce_avalara_cert_download_access($account) {
+  global $user;
+  return (!user_is_anonymous() && $account->uid == $user->uid);
 }
 
 /**
@@ -150,24 +178,6 @@ function template_preprocess_commerce_avalara_cert_user_certificates(&$variables
   if (empty($variables['table']['#rows'])) {
     $variables['table']['table']['#empty'] = t('No tax certificates could be found.');
   }
-}
-
-/**
- * Access callback: determines access to the "Tax certificates" user page.
- */
-function commerce_avalara_cert_user_page_access($account) {
-  if (user_access('administer commerce_avalara_cert')) {
-    return TRUE;
-  }
-  global $user;
-
-  // If the user doesn't have the "administer commerce_avalara_cert" permission
-  // & passed account is not the same as the logged in user, return FALSE.
-  if ($account->uid != $user->uid) {
-    return FALSE;
-  }
-
-  return user_access('view own tax certificates');
 }
 
 /**
