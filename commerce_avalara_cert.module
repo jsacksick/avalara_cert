@@ -26,6 +26,7 @@ function commerce_avalara_cert_menu() {
     'page callback' => 'commerce_avalara_cert_user_page',
     'page arguments' => array(1),
     'access callback' => 'commerce_avalara_cert_user_page_access',
+    'access arguments' => array(1),
     'type' => MENU_LOCAL_TASK,
     'file' => 'includes/commerce_avalara_cert.user.inc',
     'weight' => 20,
@@ -154,9 +155,16 @@ function template_preprocess_commerce_avalara_cert_user_certificates(&$variables
 /**
  * Access callback: determines access to the "Tax certificates" user page.
  */
-function commerce_avalara_cert_user_page_access() {
+function commerce_avalara_cert_user_page_access($account) {
   if (user_access('administer commerce_avalara_cert')) {
     return TRUE;
+  }
+  global $user;
+
+  // If the user doesn't have the "administer commerce_avalara_cert" permission
+  // & passed account is not the same as the logged in user, return FALSE.
+  if ($account->uid != $user->uid) {
+    return FALSE;
   }
 
   return user_access('view own tax certificates');
