@@ -150,7 +150,7 @@ function commerce_avalara_cert_theme($existing, $type, $theme, $path) {
     'commerce_avalara_cert_checkout' => array(
       'variables' => array(
         'ship_zone' => NULL,
-        'customer_number' => NULL,
+        'text' => NULL,
       ),
     ),
   );
@@ -173,13 +173,13 @@ function template_preprocess_commerce_avalara_cert_user_certificates(&$variables
   );
   $empty_message = t('No tax certificates could be found.');
 
-  if (empty($variables['customer_code'])) {
+  if (empty($variables['customer_number'])) {
     $variables['table']['#empty'] = $empty_message;
     return;
   }
 
   // Add the customer code as a JS setting.
-  drupal_add_js(array('commerce_avalara_cert' => array('customer_number' => $variables['customer_code'])), 'setting');
+  drupal_add_js(array('commerce_avalara_cert' => array('customer_number' => $variables['customer_number'])), 'setting');
 
   // Consider the JS SDK as non present by default.
   $sdk_present = FALSE;
@@ -200,7 +200,7 @@ function template_preprocess_commerce_avalara_cert_user_certificates(&$variables
 
   try {
     $avalara = commerce_avalara_cert_object();
-    $exempt_reasons = $avalara->customersGetExemptReasons($variables['customer_code']);
+    $exempt_reasons = $avalara->customersGetExemptReasons($variables['customer_number']);
 
     foreach ($exempt_reasons as $exempt_reason) {
       $tax_code_name = $exempt_reason['actual_tax_code']['name'];
@@ -269,7 +269,7 @@ function theme_commerce_avalara_cert_checkout($variables) {
       )
     ),
     'certificate_link' => array(
-      '#text' => t('Submit a Certificate'),
+      '#text' => !empty($variables['text']) ? check_plain($variables['text']) : t('Submit a Certificate'),
       '#theme' => 'link',
       '#path' => url('avalara-cert/ajax-checkout'),
       '#options' => array(
@@ -405,4 +405,71 @@ function commerce_avalara_cert_field_access($op, $field, $entity_type, $entity, 
   if ($field['field_name'] == 'commerce_avalara_customer_number' && $op == 'edit') {
     return user_access('administer commerce_avalara_cert', $account);
   }
+}
+
+/**
+ * Implements hook_commerce_avatax_create_transaction_alter().
+ */
+function commerce_avalara_cert_commerce_avatax_create_transaction_alter(&$request_body, $order) {
+  $supported_countries = array('US', 'CA');
+  $address = $request_body['addresses']['shipTo'];
+  // Check if the shipTo address is from US|CA and the "region" is not empty.
+  if (!in_array($address['country'], $supported_countries) || empty($address['region']) || !$order->uid) {
+    return;
+  }
+  $order_wrapper = entity_metadata_wrapper('commerce_order', $order);
+
+  // Make sure we have a customer number available.
+  if (!isset($order_wrapper->owner->commerce_avalara_customer_number)) {
+    return;
+  }
+  $customer_number = $order_wrapper->owner->commerce_avalara_customer_number->value();
+
+  if (empty($customer_number)) {
+    return;
+  }
+  // Alter the customerCode parameter to use the one stored in the user object.
+  $request_body['customerCode'] = $customer_number;
+
+  // According to the documentation, sending an arbitrary string in
+  // ExemptionNo should exempt the user from tax.
+  // TODO: Probably cache the result or store it in the order's data array.
+  if ($customer_is_exempt = commerce_avalara_cert_customer_is_exempt($customer_number, $address['region'])) {
+    $request_body['ExemptionNo'] = 'EXEMPT';
+  }
+}
+
+/**
+ * Checks if the given customer is exempt from tax for a given zone.
+ *
+ * @param $customer_number
+ *   The customer number.
+ * @param $ship_zone
+ *   The shipping zone initials (e.g: NC for North Carolina).
+ *
+ * @return bool
+ *   TRUE if the customer is tax exempt, FALSE otherwise.
+ */
+function commerce_avalara_cert_customer_is_exempt($customer_number, $ship_zone) {
+  try {
+    $avalara = commerce_avalara_cert_object();
+    $exempt_reasons = $avalara->customersGetExemptReasons($customer_number);
+
+    foreach ($exempt_reasons as $exempt_reason) {
+      $tax_code_name = $exempt_reason['actual_tax_code']['name'];
+      // Skip irrelevant zones.
+      if ($exempt_reason['exposure_zone']['state']['initials'] != $ship_zone ||
+        substr($tax_code_name, 0, 8) == 'EXPOSURE' ||
+        substr($tax_code_name, 0, 7) == 'TAXABLE') {
+        continue;
+      }
+      // If we've reached this point, this means the user is tax exempt.
+      return TRUE;
+    }
+  }
+  catch (Exception $e) {
+    return FALSE;
+  }
+
+  return FALSE;
 }

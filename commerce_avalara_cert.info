@@ -4,5 +4,8 @@ package = Commerce (Tax)
 core = 7.x
 configure = admin/commerce/config/avalara-cert
 
+dependencies[] = entity
+dependencies[] = user
+
 files[] = lib/AvalaraCert.php
 files[] = lib/AvalaraCertExceptions.php
