@@ -277,7 +277,7 @@ function commerce_avalara_cert_object($api_key = '', $client_id = '') {
  */
 function commerce_avalara_cert_field_access($op, $field, $entity_type, $entity, $account) {
   // Hide the customer code field.
-  if ($field['field_name'] == 'commerce_avalara_customer_code' && $op == 'edit') {
+  if ($field['field_name'] == 'commerce_avalara_customer_number' && $op == 'edit') {
     return user_access('administer commerce_avalara_cert', $account);
   }
 }

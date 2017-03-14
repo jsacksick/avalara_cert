@@ -9,8 +9,8 @@ function commerce_avalara_cert_user_page($account) {
   $customer_code = '';
 
   // Check if the customer code is not empty.
-  if (isset($account_wrapper->commerce_avalara_customer_code)) {
-    $customer_code = $account_wrapper->commerce_avalara_customer_code->value();
+  if (isset($account_wrapper->commerce_avalara_customer_number)) {
+    $customer_code = $account_wrapper->commerce_avalara_customer_number->value();
   }
 
   // If the customer code is not configured, display an empty message.

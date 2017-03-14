@@ -164,6 +164,19 @@ class AvalaraCert {
   }
 
   /**
+   * Create a customer.
+   *
+   * @param string[] $parameters
+   *   An associative array of parameters containing at least the customer_code.
+   *
+   * @return string[]
+   *   The API response JSON converted to an associative array.
+   */
+  public function customersCreate($parameters = array()) {
+    return $this->doRequest('POST', 'customers', $parameters);
+  }
+
+  /**
    * Retrieve a customer.
    *
    * @param $customer_number
@@ -173,6 +186,7 @@ class AvalaraCert {
    *   The API response JSON converted to an associative array.
    */
   public function customersGet($customer_number) {
+    $customer_number = rawurlencode($customer_number);
     return $this->doRequest('GET', 'customers/' . $customer_number);
   }
 
@@ -186,6 +200,7 @@ class AvalaraCert {
    *   The API response JSON converted to an associative array.
    */
   public function customersGetCertificates($customer_number) {
+    $customer_number = rawurlencode($customer_number);
     return $this->doRequest('GET', "customers/$customer_number/certificates");
   }
 
@@ -199,7 +214,18 @@ class AvalaraCert {
    *   The API response JSON converted to an associative array.
    */
   public function customersGetExemptReasons($customer_number) {
+    $customer_number = rawurlencode($customer_number);
     return $this->doRequest('GET', "customers/$customer_number/exempt-reasons");
+  }
+
+  /**
+   * Generate a customer number.
+   *
+   * @return string[]
+   *   The API response JSON converted to an associative array.
+   */
+  public function customersGenerateNumber() {
+    return $this->doRequest('POST', "customers/generate-customer-number");
   }
 
   /**
