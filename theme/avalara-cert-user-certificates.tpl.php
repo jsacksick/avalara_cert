@@ -1,5 +1,3 @@
-<div id="commerce-avalara-cert-user-dialog">
-</div>
 <?php if (!empty($table)): ?>
   <?php print render($table); ?>
 <?php endif; ?>

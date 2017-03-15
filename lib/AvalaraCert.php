@@ -132,7 +132,7 @@ class AvalaraCert {
    */
   public function logMessage($message, $variables = array(), $severity = WATCHDOG_NOTICE) {
     if (is_callable($this->logger)) {
-      call_user_func_array($this->logger, array('commerce_avalara_cert', $message, $variables, $severity));
+      call_user_func_array($this->logger, array('avalara_cert', $message, $variables, $severity));
     }
   }
 
@@ -239,6 +239,47 @@ class AvalaraCert {
    */
   public function certificatesList($parameters = array()) {
     return $this->doRequest('GET', 'certificates', $parameters);
+  }
+
+  /**
+   * Create a Certificate.
+   *
+   * @param string[] $parameters
+   *   An associative array of parameters containing at least the 'filename' or
+   *   'pdf' (urlencoded base64 pdf) or 'pages' (an array of urlencoded base64
+   *   images).
+   *
+   * @return string[]
+   *   The API response JSON converted to an associative array.
+   */
+  public function certificatesCreate($parameters = array()) {
+    return $this->doRequest('POST', 'certificates', $parameters);
+  }
+
+  /**
+   * Retrieve a certificate.
+   *
+   * @param $certificate_id
+   *   The number certificate id.
+   *
+   * @return string[]
+   *   The API response JSON converted to an associative array.
+   */
+  public function certificatesGet($certificate_id) {
+    return $this->doRequest('GET', 'certificates/' . $certificate_id);
+  }
+
+  /**
+   * Retrieve the customers associated to a customer.
+   *
+   * @param $certificate_id
+   *   The number certificate id.
+   *
+   * @return string[]
+   *   The API response JSON converted to an associative array.
+   */
+  public function certificatesGetCustomers($certificate_id) {
+    return $this->doRequest('GET', "certificates/$certificate_id/customers");
   }
 
   /**

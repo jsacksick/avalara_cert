@@ -1,1 +1,1 @@
-Drupal Commerce Connector for Avalara CertCapture.
+Provides integration with the Avalara CertCapture API.

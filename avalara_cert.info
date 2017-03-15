@@ -1,0 +1,10 @@
+name = Avalara CertCapture
+description = Provides integration with the Avalara CertCapture API.
+core = 7.x
+configure = admin/config/services/avalara-cert
+
+dependencies[] = entity
+dependencies[] = user
+
+files[] = lib/AvalaraCert.php
+files[] = lib/AvalaraCertExceptions.php

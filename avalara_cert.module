@@ -8,43 +8,43 @@
 /**
  * Implements hook_menu().
  */
-function commerce_avalara_cert_menu() {
+function avalara_cert_menu() {
   $items = array();
 
-  $items['admin/commerce/config/avalara-cert'] = array(
+  $items['admin/config/services/avalara-cert'] = array(
     'title' => 'Avalara CertCapture ',
     'description' => 'Avalara CertCapture Configuration',
     'page callback' => 'drupal_get_form',
-    'page arguments' => array('commerce_avalara_cert_settings_form'),
-    'file' => 'includes/commerce_avalara_cert.admin.inc',
-    'access arguments' => array('administer commerce_avalara_cert'),
+    'page arguments' => array('avalara_cert_settings_form'),
+    'file' => 'includes/avalara_cert.admin.inc',
+    'access arguments' => array('administer avalara_cert'),
     'type' => MENU_NORMAL_ITEM,
   );
 
   $items['user/%user/tax-certificates'] = array(
     'title' => 'Tax certificates',
-    'page callback' => 'commerce_avalara_cert_user_page',
+    'page callback' => 'avalara_cert_user_page',
     'page arguments' => array(1),
-    'access callback' => 'commerce_avalara_cert_user_page_access',
+    'access callback' => 'avalara_cert_user_page_access',
     'access arguments' => array(1),
     'type' => MENU_LOCAL_TASK,
-    'file' => 'includes/commerce_avalara_cert.user.inc',
+    'file' => 'includes/avalara_cert.user.inc',
     'weight' => 20,
   );
 
   $items['avalara-cert/%/download'] = array(
-    'page callback' => 'commerce_avalara_cert_download',
+    'page callback' => 'avalara_cert_download',
     'page arguments' => array(1),
-    'access callback' => 'commerce_avalara_cert_download_access',
+    'access callback' => 'avalara_cert_download_access',
     'access arguments' => array(1),
-    'file' => 'includes/commerce_avalara_cert.user.inc',
+    'file' => 'includes/avalara_cert.user.inc',
     'type' => MENU_CALLBACK,
   );
 
-  $items['avalara-cert/ajax-checkout'] = array(
+  $items['avalara-cert/ajax-submit-certificate'] = array(
     'delivery callback' => 'ajax_deliver',
     'theme callback' => 'ajax_base_page_theme',
-    'page callback' => 'commerce_avalara_cert_checkout_ajax',
+    'page callback' => 'avalara_cert_submit_certificate_ajax',
     'access callback' => TRUE,
     'type' => MENU_CALLBACK,
   );
@@ -53,15 +53,55 @@ function commerce_avalara_cert_menu() {
 }
 
 /**
+ * Access callback: determines access to the download certificate link.
+ */
+function avalara_cert_download_access($certificate_id) {
+  if (user_is_anonymous()) {
+    return FALSE;
+  }
+  if (user_access('administer avalara_cert')) {
+    return TRUE;
+  }
+  global $user;
+  $account = user_load($user->uid);
+  $account_wrapper = entity_metadata_wrapper('user', $account);
+
+  if (empty($account->avalara_customer_number) || !$account_wrapper->avalara_customer_number->value()) {
+    return FALSE;
+  }
+
+  try {
+    $avalara = avalara_cert_object();
+    $customers = $avalara->certificatesGetCustomers($certificate_id);
+    $customer_number = $account_wrapper->avalara_customer_number->value();
+
+    // Loop over the customers and check if it belongs to the logged in
+    // customer.
+    if (!empty($customers)) {
+      foreach ($customers as $customer) {
+        if ($customer['customer_number'] == $customer_number) {
+          return TRUE;
+        }
+      }
+    }
+  }
+  catch (Exception $e) {
+    return FALSE;
+  }
+
+  return FALSE;
+}
+
+/**
  * Access callback: determines access to the "Tax certificates" user page.
  */
-function commerce_avalara_cert_user_page_access($account) {
-  if (user_access('administer commerce_avalara_cert')) {
+function avalara_cert_user_page_access($account) {
+  if (user_access('administer avalara_cert')) {
     return TRUE;
   }
   global $user;
 
-  // If the user doesn't have the "administer commerce_avalara_cert" permission
+  // If the user doesn't have the "administer avalara_cert" permission
   // & passed account is not the same as the logged in user, return FALSE.
   if ($account->uid != $user->uid) {
     return FALSE;
@@ -70,19 +110,10 @@ function commerce_avalara_cert_user_page_access($account) {
   return user_access('view own tax certificates');
 }
 
-
-/**
- * Access callback: determines access to download certificate.
- */
-function commerce_avalara_cert_download_access($account) {
-  global $user;
-  return (!user_is_anonymous() && $account->uid == $user->uid);
-}
-
 /**
  * Ajax callback for the "create certificate" link.
  */
-function commerce_avalara_cert_checkout_ajax() {
+function avalara_cert_submit_certificate_ajax() {
   if (user_is_anonymous()) {
     return MENU_NOT_FOUND;
   }
@@ -90,13 +121,13 @@ function commerce_avalara_cert_checkout_ajax() {
   global $user;
   $account = user_load($user->uid);
   $account_wrapper = entity_metadata_wrapper('user', $account);
-  $customer_number = $account_wrapper->commerce_avalara_customer_number->value();
+  $customer_number = $account_wrapper->avalara_customer_number->value();
   $error = FALSE;
 
   // If we don't have a customer number, we need to call Avalara to create one.
   if (empty($customer_number)) {
     try {
-      $avalara = commerce_avalara_cert_object();
+      $avalara = avalara_cert_object();
       $result = $avalara->customersGenerateNumber();
 
       if (isset($result['customer_number'])) {
@@ -106,13 +137,13 @@ function commerce_avalara_cert_checkout_ajax() {
         // in that case, we need to save it.
         if (isset($result['id'])) {
           $customer_number = $result['customer_number'];
-          $account_wrapper->commerce_avalara_customer_number->set($customer_number);
+          $account_wrapper->avalara_customer_number->set($customer_number);
           $account_wrapper->save();
         }
       }
     }
     catch (Exception $e) {
-      watchdog_exception('commerce_avalara_cert', $e);
+      watchdog_exception('avalara_cert', $e);
       $error = TRUE;
     }
   }
@@ -123,31 +154,33 @@ function commerce_avalara_cert_checkout_ajax() {
   }
 
   // Open a modal containing the certificate submission form.
+  $dialog_id = 'avalara-cert-certificate-dialog';
   $commands[] = array(
-    'command' => 'commerce_avalara_cert_checkout_modal_display',
-    'selector' => '#commerce-avalara-cert-checkout-dialog',
+    'command' => 'avalara_cert_modal_display',
+    'dialogID' => $dialog_id,
+    'selector' => '#' . $dialog_id,
     'initSettings' => array(
       'customer_number' => $customer_number,
     ),
   );
-  drupal_alter('commerce_avalara_cert_checkout_ajax_commands', $commands, $account);
+  drupal_alter('avalara_cert_submit_certificate_ajax', $commands, $account);
   return array('#type' => 'ajax', '#commands' => $commands);
 }
 
 /**
  * Implements hook_theme().
  */
-function commerce_avalara_cert_theme($existing, $type, $theme, $path) {
+function avalara_cert_theme($existing, $type, $theme, $path) {
   return array(
-    'commerce_avalara_cert_user_certificates' => array(
+    'avalara_cert_user_certificates' => array(
       'variables' => array(
         'customer_number' => NULL,
         'table' => '',
       ),
-      'template' => 'commerce-avalara-cert-user-certificates',
+      'template' => 'avalara-cert-user-certificates',
       'path' => $path . '/theme',
     ),
-    'commerce_avalara_cert_checkout' => array(
+    'avalara_cert_submit_certificate_link' => array(
       'variables' => array(
         'ship_zone' => NULL,
         'text' => NULL,
@@ -157,9 +190,9 @@ function commerce_avalara_cert_theme($existing, $type, $theme, $path) {
 }
 
 /**
- * Preprocess variables for commerce-avalara-cert-user-certificates.tpl.php.
+ * Preprocess variables for avalara-cert-user-certificates.tpl.php.
  */
-function template_preprocess_commerce_avalara_cert_user_certificates(&$variables) {
+function template_preprocess_avalara_cert_user_certificates(&$variables) {
   $variables['table'] = array(
     '#theme' => 'table',
     '#header' => array(
@@ -179,12 +212,12 @@ function template_preprocess_commerce_avalara_cert_user_certificates(&$variables
   }
 
   // Add the customer code as a JS setting.
-  drupal_add_js(array('commerce_avalara_cert' => array('customer_number' => $variables['customer_number'])), 'setting');
+  drupal_add_js(array('avalara_cert' => array('customer_number' => $variables['customer_number'])), 'setting');
 
   // Consider the JS SDK as non present by default.
   $sdk_present = FALSE;
-  $registration_key = variable_get('commerce_avalara_cert_registration_key', '');
-  $client_id = commerce_avalara_cert_client_id();
+  $registration_key = variable_get('avalara_cert_registration_key', '');
+  $client_id = avalara_cert_client_id();
 
   // Add the JS SDK and the "Renew" table header in case we have a registration
   // key.
@@ -194,12 +227,12 @@ function template_preprocess_commerce_avalara_cert_user_certificates(&$variables
     $registration_key = check_plain($registration_key);
     $variables['table']['#header'][] = t('Renew');
     drupal_add_library('system', 'ui.dialog');
-    drupal_add_js(drupal_get_path('module', 'commerce_avalara_cert') . '/js/commerce_avalara_cert.user.js');
+    drupal_add_js(drupal_get_path('module', 'avalara_cert') . '/js/avalara_cert.js');
     drupal_add_js("https://app.certcapture.com/gencert2/js?cid=$client_id&key=$registration_key", 'external');
   }
 
   try {
-    $avalara = commerce_avalara_cert_object();
+    $avalara = avalara_cert_object();
     $exempt_reasons = $avalara->customersGetExemptReasons($variables['customer_number']);
 
     foreach ($exempt_reasons as $exempt_reason) {
@@ -226,16 +259,10 @@ function template_preprocess_commerce_avalara_cert_user_certificates(&$variables
 
       // If the SDK is present, add the renew link.
       if ($sdk_present) {
-        $renew_link_options = array(
-          'external' => TRUE,
-          'attributes' => array(
-            'data-state' => $exempt_reason['exposure_zone']['name'],
-            'class' => array(
-              'commerce-avalara-cert-renew',
-            ),
-          ),
-        );
-        $row[] = l('Renew', '#', $renew_link_options);
+        $row[] = theme('avalara_cert_submit_certificate_link', array(
+          'ship_zone' => $exempt_reason['exposure_zone']['name'],
+          'text' => t('Renew'),
+        ));
       }
 
       $variables['table']['#rows'][] = $row;
@@ -252,32 +279,25 @@ function template_preprocess_commerce_avalara_cert_user_certificates(&$variables
 /**
  * Themes the line item manager widget form element.
  */
-function theme_commerce_avalara_cert_checkout($variables) {
-  $registration_key = variable_get('commerce_avalara_cert_registration_key', '');
-  $client_id = commerce_avalara_cert_client_id();
+function theme_avalara_cert_submit_certificate_link($variables) {
+  $registration_key = variable_get('avalara_cert_registration_key', '');
+  $client_id = avalara_cert_client_id();
   // We need a customer code, a ship zone, a registration key & a client ID.
   if (user_is_anonymous() || empty($variables['ship_zone']) || empty($registration_key) || empty($client_id)) {
     return '';
   }
   $build = array(
-    'certificate_dialog' => array(
-      '#theme' => 'html_tag',
-      '#tag' => 'div',
-      '#value' => '',
-      '#attributes' => array(
-        'id' => 'commerce-avalara-cert-checkout-dialog',
-      )
-    ),
     'certificate_link' => array(
       '#text' => !empty($variables['text']) ? check_plain($variables['text']) : t('Submit a Certificate'),
       '#theme' => 'link',
-      '#path' => url('avalara-cert/ajax-checkout'),
+      '#path' => url('avalara-cert/ajax-submit-certificate'),
       '#options' => array(
         'attributes' => array(
           'class' => array(
             'use-ajax',
-            'commerce-avalara-cert-submit-certificate',
+            'avalara-cert-submit-certificate',
           ),
+          'data-ship-zone' => $variables['ship_zone']
         ),
         'html' => FALSE,
       ),
@@ -288,16 +308,8 @@ function theme_commerce_avalara_cert_checkout($variables) {
         array('system', 'ui.dialog'),
       ),
       'js' => array(
-        drupal_get_path('module', 'commerce_avalara_cert') . '/js/commerce_avalara_cert.checkout.js',
+        drupal_get_path('module', 'avalara_cert') . '/js/avalara_cert.js',
         "https://app.certcapture.com/gencert2/js?cid=$client_id&key=$registration_key",
-        array(
-          'data' => array(
-            'commerce_avalara_cert' => array(
-              'shipZone' => check_plain($variables['ship_zone']),
-            ),
-          ),
-          'type' => 'setting'
-        )
       ),
     ),
   );
@@ -308,11 +320,11 @@ function theme_commerce_avalara_cert_checkout($variables) {
 /**
  * Implements hook_permission().
  */
-function commerce_avalara_cert_permission() {
+function avalara_cert_permission() {
   return array(
-    'administer commerce_avalara_cert' => array(
+    'administer avalara_cert' => array(
       'title' => t('Administer Avalara CertCapture'),
-      'description' => t('Allows users to configure Commerce Avalara CertCapture.'),
+      'description' => t('Allows users to configure Avalara CertCapture.'),
       'restrict access' => TRUE,
     ),
     'view own tax certificates' => array(
@@ -326,22 +338,22 @@ function commerce_avalara_cert_permission() {
 /**
  * Returns the Avalara CertCapture username.
  */
-function commerce_avalara_cert_username() {
-  return variable_get('commerce_avalara_cert_username', '');
+function avalara_cert_username() {
+  return variable_get('avalara_cert_username', '');
 }
 
 /**
  * Returns the Avalara CertCapture password.
  */
-function commerce_avalara_cert_password() {
-  return variable_get('commerce_avalara_cert_password', '');
+function avalara_cert_password() {
+  return variable_get('avalara_cert_password', '');
 }
 
 /**
  * Returns the configured client_id.
  */
-function commerce_avalara_cert_client_id() {
-  return variable_get('commerce_avalara_cert_client_id', '');
+function avalara_cert_client_id() {
+  return variable_get('avalara_cert_client_id', '');
 }
 
 /**
@@ -355,13 +367,13 @@ function commerce_avalara_cert_client_id() {
  * @return AvalaraCert|bool.
  *   The constructed object or FALSE if the library could not be loaded.
  */
-function commerce_avalara_cert_object($api_key = '', $client_id = '') {
+function avalara_cert_object($api_key = '', $client_id = '') {
   $avalara = &drupal_static(__FUNCTION__, array());
 
   // If the API key wasn't provided.
   if (empty($api_key)) {
-    $username = commerce_avalara_cert_username();
-    $password = commerce_avalara_cert_password();
+    $username = avalara_cert_username();
+    $password = avalara_cert_password();
 
     if (!empty($username) && !empty($password)) {
       $api_key = base64_encode("$username:$password");
@@ -372,7 +384,7 @@ function commerce_avalara_cert_object($api_key = '', $client_id = '') {
   }
 
   // Defaults the client_id to the one configured if not specified.
-  $client_id = $client_id ? $client_id : commerce_avalara_cert_client_id();
+  $client_id = $client_id ? $client_id : avalara_cert_client_id();
 
   if (empty($client_id)) {
     return FALSE;
@@ -387,7 +399,7 @@ function commerce_avalara_cert_object($api_key = '', $client_id = '') {
     );
 
     // Specify the logger if the logging was enabled.
-    if (variable_get('commerce_avalara_cert_logging', FALSE)) {
+    if (variable_get('avalara_cert_logging', FALSE)) {
       $logger = 'watchdog';
     }
 
@@ -400,17 +412,19 @@ function commerce_avalara_cert_object($api_key = '', $client_id = '') {
 /**
  * Implements hook_field_access().
  */
-function commerce_avalara_cert_field_access($op, $field, $entity_type, $entity, $account) {
+function avalara_cert_field_access($op, $field, $entity_type, $entity, $account) {
   // Hide the customer code field.
-  if ($field['field_name'] == 'commerce_avalara_customer_number' && $op == 'edit') {
-    return user_access('administer commerce_avalara_cert', $account);
+  if ($field['field_name'] == 'avalara_customer_number' && $op == 'edit') {
+    return user_access('administer avalara_cert', $account);
   }
 }
 
 /**
  * Implements hook_commerce_avatax_create_transaction_alter().
+ *
+ * Check if this customer is tax exempt.
  */
-function commerce_avalara_cert_commerce_avatax_create_transaction_alter(&$request_body, $order) {
+function avalara_cert_commerce_avatax_create_transaction_alter(&$request_body, $order) {
   $supported_countries = array('US', 'CA');
   $address = $request_body['addresses']['shipTo'];
   // Check if the shipTo address is from US|CA and the "region" is not empty.
@@ -420,10 +434,10 @@ function commerce_avalara_cert_commerce_avatax_create_transaction_alter(&$reques
   $order_wrapper = entity_metadata_wrapper('commerce_order', $order);
 
   // Make sure we have a customer number available.
-  if (!isset($order_wrapper->owner->commerce_avalara_customer_number)) {
+  if (!isset($order_wrapper->owner->avalara_customer_number)) {
     return;
   }
-  $customer_number = $order_wrapper->owner->commerce_avalara_customer_number->value();
+  $customer_number = $order_wrapper->owner->avalara_customer_number->value();
 
   if (empty($customer_number)) {
     return;
@@ -434,7 +448,7 @@ function commerce_avalara_cert_commerce_avatax_create_transaction_alter(&$reques
   // According to the documentation, sending an arbitrary string in
   // ExemptionNo should exempt the user from tax.
   // TODO: Probably cache the result or store it in the order's data array.
-  if ($customer_is_exempt = commerce_avalara_cert_customer_is_exempt($customer_number, $address['region'])) {
+  if ($customer_is_exempt = avalara_cert_customer_is_exempt($customer_number, $address['region'])) {
     $request_body['ExemptionNo'] = 'EXEMPT';
   }
 }
@@ -450,9 +464,9 @@ function commerce_avalara_cert_commerce_avatax_create_transaction_alter(&$reques
  * @return bool
  *   TRUE if the customer is tax exempt, FALSE otherwise.
  */
-function commerce_avalara_cert_customer_is_exempt($customer_number, $ship_zone) {
+function avalara_cert_customer_is_exempt($customer_number, $ship_zone) {
   try {
-    $avalara = commerce_avalara_cert_object();
+    $avalara = avalara_cert_object();
     $exempt_reasons = $avalara->customersGetExemptReasons($customer_number);
 
     foreach ($exempt_reasons as $exempt_reason) {

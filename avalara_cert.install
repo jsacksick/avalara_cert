@@ -2,15 +2,15 @@
 
 /**
  * @file
- * Installation functions for the Commerce Avalara CertCapture module.
+ * Installation functions for the Avalara CertCapture module.
  */
 
 /**
  * Implements hook_install().
  */
-function commerce_avalara_cert_install() {
+function avalara_cert_install() {
   // Stores the Avalara CertCapture customer number.
-  $field_name = 'commerce_avalara_customer_number';
+  $field_name = 'avalara_customer_number';
   // Create the field and instance if they do not exist.
   if (!field_info_field($field_name)) {
     field_create_field(array(
@@ -39,4 +39,14 @@ function commerce_avalara_cert_install() {
       ),
     ));
   }
+}
+
+/**
+ * Implements hook_uninstall().
+ */
+function avalara_cert_uninstall() {
+  // Remove all variables provided by this module.
+  db_delete('variable')
+    ->condition('name', 'avalara_cert%', 'LIKE')
+    ->execute();
 }
