@@ -1,4 +1,6 @@
 <?php if (!empty($table)): ?>
   <?php print render($table); ?>
 <?php endif; ?>
-<a href="https://portal.certcapture.com" target="_blank"><?php print t('Create or submit a certificate'); ?></a>
+<?php if (!empty($certificate_form)): ?>
+  <?php print render($certificate_form); ?>
+<?php endif; ?>

@@ -3,6 +3,7 @@ description = Provides integration with the Avalara CertCapture API.
 core = 7.x
 configure = admin/config/services/avalara-cert
 
+dependencies[] = addressfield
 dependencies[] = entity
 dependencies[] = user
 

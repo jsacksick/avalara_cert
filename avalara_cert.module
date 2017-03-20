@@ -113,7 +113,7 @@ function avalara_cert_user_page_access($account) {
 /**
  * Ajax callback for the "create certificate" link.
  */
-function avalara_cert_submit_certificate_ajax() {
+function avalara_cert_submit_certificate_ajax($ship_zone = '') {
   if (user_is_anonymous()) {
     return MENU_NOT_FOUND;
   }
@@ -161,6 +161,7 @@ function avalara_cert_submit_certificate_ajax() {
     'selector' => '#' . $dialog_id,
     'initSettings' => array(
       'customer_number' => $customer_number,
+      'ship_zone' => $ship_zone,
     ),
   );
   drupal_alter('avalara_cert_submit_certificate_ajax', $commands, $account);
@@ -271,9 +272,72 @@ function template_preprocess_avalara_cert_user_certificates(&$variables) {
   catch (Exception $e) {
   }
 
+  // Inject a form for submitting a new certificate.
+  if ($sdk_present) {
+    $variables['certificate_form'] = drupal_get_form('avalara_cert_submit_certificate_form');
+  }
+
   if (empty($variables['table']['#rows'])) {
     $variables['table']['table']['#empty'] = t('No tax certificates could be found.');
   }
+}
+
+/**
+ * Form constructor for the submit certificate form.
+ *
+ * @ingroup forms
+ */
+function avalara_cert_submit_certificate_form($form, &$form_state) {
+  module_load_include('inc', 'addressfield', 'addressfield.administrative_areas');
+  if (module_exists('countries')) {
+    $countries = countries_get_countries('name', array('enabled' => COUNTRIES_ENABLED, 'countries' => array('US', 'CA')));
+  }
+  else {
+    require_once DRUPAL_ROOT . '/includes/locale.inc';
+    $countries = country_get_list();
+  }
+  $registration_key = variable_get('avalara_cert_registration_key', '');
+  $client_id = avalara_cert_client_id();
+
+  if (empty($registration_key) || empty($client_id)) {
+    $form['error'] = array(
+      '#markup' => t('The client_id or the registration key is not properly configured'),
+    );
+
+    return $form;
+  }
+
+  $form['#attached'] = array(
+    'library' => array(
+      array('system', 'ui.dialog'),
+    ),
+    'js' => array(
+      drupal_get_path('module', 'avalara_cert') . '/js/avalara_cert.js',
+      "https://app.certcapture.com/gencert2/js?cid=$client_id&key=$registration_key",
+    ),
+  );
+  $us_states = addressfield_get_administrative_areas('US');
+  $ca_states = addressfield_get_administrative_areas('CA');
+  $form['ship_zone'] = array(
+    '#title' => t('Create or submit a new certificate'),
+    '#type' => 'select',
+    '#options' => array(
+      $countries['US'] => drupal_map_assoc(array_values($us_states)),
+      $countries['CA'] => drupal_map_assoc(array_values($ca_states)),
+    ),
+    '#ajax' => array(
+      'callback' => 'avalara_cert_submit_certificate_refresh',
+    ),
+  );
+
+  return $form;
+}
+
+/**
+ * Ajax callback: returns AJAX commands when a ship zone is selected.
+ */
+function avalara_cert_submit_certificate_refresh($form, $form_state) {
+  return avalara_cert_submit_certificate_ajax($form_state['values']['ship_zone']);
 }
 
 /**

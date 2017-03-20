@@ -11,19 +11,58 @@ function avalara_cert_settings_form($form, &$form_state) {
     '#type' => 'fieldset',
   );
 
-  $form['credentials']['avalara_cert_username'] = array(
-    '#title' => t('Username'),
-    '#type' => 'textfield',
-    '#default_value' => variable_get('avalara_cert_username', ''),
-    '#required' => TRUE,
+  $fields = array(
+    'avalara_cert_username' => array(
+      'title' => t('Username'),
+      'description' => t('The username that is used to authenticate against the API.'),
+    ),
+    'avalara_cert_password' => array(
+      'title' => t('Password'),
+      'description' => t('The password that is used to authenticate against the API.'),
+    ),
   );
 
-  $form['credentials']['avalara_cert_password'] = array(
-    '#title' => t('Password'),
-    '#type' => 'textfield',
-    '#default_value' => variable_get('avalara_cert_password', ''),
-    '#required' => TRUE,
-  );
+  $display_warning = FALSE;
+  foreach ($fields as $variable_name => $conf) {
+    $variable_value = variable_get($variable_name, '');
+    // Determine if the settings are in the database; if they are not but have
+    // values set, we disable the form fields so the values will not be saved to
+    // the database on submission.
+    $variable_in_db = unserialize(db_query("SELECT value FROM {variable} WHERE name = :name", array(':name' => $variable_name))->fetchField());
+
+    if (!empty($variable_value) && empty($variable_in_db)) {
+      $form['credentials'][$variable_name] = array(
+        '#type' => 'item',
+        '#title' => $conf['title'],
+        '#description' => $conf['description'],
+        '#markup' => check_plain($variable_value),
+      );
+    }
+    else {
+      $form['credentials'][$variable_name] = array(
+        '#type' => 'textfield',
+        '#title' => $conf['title'],
+        '#description' => $conf['description'],
+        '#default_value' => $variable_value,
+        '#required' => TRUE,
+      );
+    }
+
+    // Show a message informing the user of best practices to not store API
+    // credentials in the database if necessary.
+    if (empty($variable_value) || (!empty($variable_value) && $variable_in_db)) {
+      $display_warning = TRUE;
+    }
+  }
+
+  // Show a message informing the user of best practices to not store API
+  // credentials in the database if necessary.
+  // Avoid to repeat the message during when the credentials are validated.
+  if ($display_warning) {
+    $description = t('It is best practice to store API credentials outside of the database and your source code repository.');
+    $description .= ' ' . t('Consider setting the credential variables as server environment variables and bringing them into your Drupal configuration via the $conf array in your settings.php file instead.');
+    drupal_set_message($description, 'warning');
+  }
 
   $form['avalara_cert_client_id'] = array(
     '#title' => t('Client ID'),
