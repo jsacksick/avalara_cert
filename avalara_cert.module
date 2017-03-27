@@ -35,7 +35,16 @@ function avalara_cert_menu() {
   $items['avalara-cert/%/download'] = array(
     'page callback' => 'avalara_cert_download',
     'page arguments' => array(1),
-    'access callback' => 'avalara_cert_download_access',
+    'access callback' => 'avalara_cert_certificate_access',
+    'access arguments' => array(1),
+    'file' => 'includes/avalara_cert.user.inc',
+    'type' => MENU_CALLBACK,
+  );
+
+  $items['avalara-cert/%/delete'] = array(
+    'page callback' => 'avalara_cert_delete',
+    'page arguments' => array(1),
+    'access callback' => 'avalara_cert_certificate_access',
     'access arguments' => array(1),
     'file' => 'includes/avalara_cert.user.inc',
     'type' => MENU_CALLBACK,
@@ -53,9 +62,9 @@ function avalara_cert_menu() {
 }
 
 /**
- * Access callback: determines access to the download certificate link.
+ * Access callback: determines access to download/delete certificates.
  */
-function avalara_cert_download_access($certificate_id) {
+function avalara_cert_certificate_access($certificate_id) {
   if (user_is_anonymous()) {
     return FALSE;
   }

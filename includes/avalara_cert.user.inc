@@ -42,3 +42,23 @@ function avalara_cert_download($certificate_id) {
     return MENU_NOT_FOUND;
   }
 }
+
+/**
+ * Page callback: Removes a tax certificate.
+ */
+function avalara_cert_delete($certificate_id) {
+  if (user_is_anonymous()) {
+    return MENU_NOT_FOUND;
+  }
+  try {
+    $avalara = avalara_cert_object();
+    $result = $avalara->certificatesDelete($certificate_id);
+    drupal_set_message(t('The tax certificate was successfully deleted.'));
+  }
+  catch (Exception $e) {
+    drupal_set_message(t('Something went wrong while deleting the tax certificate', 'error'));
+  }
+  global $user;
+
+  return drupal_goto("user/$user->uid/tax-certificates");
+}

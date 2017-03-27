@@ -137,7 +137,7 @@ class AvalaraCert {
   }
 
   /**
-   * Get a Token.
+   * Gets a Token.
    */
   public function getToken() {
     return $this->doRequest('POST', 'auth/get-token');
@@ -188,6 +188,36 @@ class AvalaraCert {
   public function customersGet($customer_number) {
     $customer_number = rawurlencode($customer_number);
     return $this->doRequest('GET', 'customers/' . $customer_number);
+  }
+
+  /**
+   * Update a customer.
+   *
+   * @param $customer_number
+   *   The customer_number.
+   * @param string[] $fields
+   *   An associative array of fields to update.
+   *
+   * @return string[]
+   *   The API response JSON converted to an associative array.
+   */
+  public function customersUpdate($customer_number, $fields) {
+    $customer_number = rawurlencode($customer_number);
+    return $this->doRequest('PUT', 'customers/' . $customer_number, $fields);
+  }
+
+  /**
+   * Delete a customer.
+   *
+   * @param $customer_number
+   *   The customer_number.
+   *
+   * @return string[]
+   *   The API response JSON converted to an associative array.
+   */
+  public function customersDelete($customer_number) {
+    $customer_number = rawurlencode($customer_number);
+    return $this->doRequest('DELETE', 'customers/' . $customer_number);
   }
 
   /**
@@ -293,6 +323,119 @@ class AvalaraCert {
    */
   public function certificatesDownload($certificate_id) {
     return $this->doRequest('GET', "certificates/$certificate_id/download");
+  }
+
+  /**
+   * Removes a certificate.
+   *
+   * @param string $certificate_id
+   *   Numeric certificate id.
+   *
+   * @return string[]
+   *   The API response JSON converted to an associative array.
+   */
+  public function certificatesDelete($certificate_id) {
+    return $this->doRequest('DELETE', "certificates/$certificate_id");
+  }
+
+  /**
+   * Upload a certificate pdf in urlencoded base64 format to create/update
+   * current certificate file.
+   *
+   * @param string $certificate_id
+   *   Numeric certificate id.
+   * @param string[] $parameters
+   *   An associative array containing the 'pdf' key (urlencoded base64 pdf).
+   *
+   * @return string[]
+   *   The API response JSON converted to an associative array.
+   */
+  public function certificatesUploadPdf($certificate_id, $parameters) {
+    return $this->doRequest('PUT', "certificates/$certificate_id/upload-pdf", $parameters);
+  }
+
+  /**
+   * Upload certificate images by page in urlencoded base64 format to
+   * create/update current certificate images on file.
+   * The following image types are currently supported: JPEG, TIFF, PNG.
+   *
+   * @param string $certificate_id
+   *   Numeric certificate id.
+   * @param string[] $parameters
+   *   An associative array containing the 'pages' key (urlencoded base64).
+   *
+   * @return string[]
+   *   The API response JSON converted to an associative array.
+   */
+  public function certificatesUploadImages($certificate_id, $parameters) {
+    return $this->doRequest('PUT', "certificates/$certificate_id/upload-images", $parameters);
+  }
+
+  /**
+   * List all Exempt Reasons.
+   *
+   * @param string[] $parameters
+   *   An associative array of parameters.
+   *
+   * @return string[]
+   *   The API response JSON converted to an associative array.
+   */
+  public function exemptReasonsList($parameters = array()) {
+    return $this->doRequest('GET', 'exempt-reasons', $parameters);
+  }
+
+  /**
+   * Create an Exempt Reason.
+   *
+   * @param string[] $fields
+   *   An associative array of $fields.
+   *
+   * @return string[]
+   *   The API response JSON converted to an associative array.
+   */
+  public function exemptReasonsCreate($fields = array()) {
+    return $this->doRequest('POST', 'exempt-reasons', $fields);
+  }
+
+  /**
+   * Retrieve an Exempt Reason.
+   *
+   * @param $id
+   *   The exempt reason id.
+   *
+   * @return string[]
+   *   The API response JSON converted to an associative array.
+   */
+  public function exemptReasonsGet($id) {
+    return $this->doRequest('GET', 'exempt-reasons/' . $id);
+  }
+
+  /**
+   * Update an Exempt Reason.
+   *
+   * @param $id
+   *   The exempt reason id.
+   * @param string[] $fields
+   *   An associative array of fields.
+   *
+   * @return string[]
+   *   The API response JSON converted to an associative array.
+   */
+  public function exemptReasonsUpdate($id, $fields = array()) {
+    return $this->doRequest('PUT', 'exempt-reasons/' . $id, $fields);
+  }
+
+  /**
+   * Delete an Exempt Reason.
+   *
+   * @param $id
+   *   The exempt reason id.
+   *
+   * @return string[]
+   *   The API response JSON converted to an associative array.
+   */
+  public function exemptReasonsDelete($id) {
+    return $this->doRequest('DELETE', 'exempt-reasons/' . $id);
   }
 
   /**
