@@ -185,6 +185,7 @@ function avalara_cert_theme($existing, $type, $theme, $path) {
     'avalara_cert_user_certificates' => array(
       'variables' => array(
         'customer_number' => NULL,
+        'embed_certificate_form' => TRUE,
         'table' => '',
       ),
       'template' => 'avalara-cert-user-certificates',
@@ -282,7 +283,7 @@ function template_preprocess_avalara_cert_user_certificates(&$variables) {
   }
 
   // Inject a form for submitting a new certificate.
-  if ($sdk_present) {
+  if ($sdk_present && !empty($variables['embed_certificate_form'])) {
     $variables['certificate_form'] = drupal_get_form('avalara_cert_submit_certificate_form');
   }
 
@@ -297,6 +298,14 @@ function template_preprocess_avalara_cert_user_certificates(&$variables) {
  * @ingroup forms
  */
 function avalara_cert_submit_certificate_form($form, &$form_state) {
+  avalara_cert_attach_submit_certificate_form($form, $form_state);
+  return $form;
+}
+
+/**
+ * Helper function used to attach the certificate submission form.
+ */
+function avalara_cert_attach_submit_certificate_form(&$form, &$form_state) {
   module_load_include('inc', 'addressfield', 'addressfield.administrative_areas');
   if (module_exists('countries')) {
     $countries = countries_get_countries('name', array('enabled' => COUNTRIES_ENABLED, 'countries' => array('US', 'CA')));
@@ -312,24 +321,14 @@ function avalara_cert_submit_certificate_form($form, &$form_state) {
     $form['error'] = array(
       '#markup' => t('The client_id or the registration key is not properly configured'),
     );
-
-    return $form;
+    return;
   }
-
-  $form['#attached'] = array(
-    'library' => array(
-      array('system', 'ui.dialog'),
-    ),
-    'js' => array(
-      drupal_get_path('module', 'avalara_cert') . '/js/avalara_cert.js',
-      "https://app.certcapture.com/gencert2/js?cid=$client_id&key=$registration_key",
-    ),
-  );
   $us_states = addressfield_get_administrative_areas('US');
   $ca_states = addressfield_get_administrative_areas('CA');
   $form['ship_zone'] = array(
     '#title' => t('Create or submit a new certificate'),
     '#type' => 'select',
+    '#empty_option' => t('- Select -'),
     '#options' => array(
       $countries['US'] => drupal_map_assoc(array_values($us_states)),
       $countries['CA'] => drupal_map_assoc(array_values($ca_states)),
@@ -337,16 +336,26 @@ function avalara_cert_submit_certificate_form($form, &$form_state) {
     '#ajax' => array(
       'callback' => 'avalara_cert_submit_certificate_refresh',
     ),
+    '#attached' => array(
+      'library' => array(
+        array('system', 'ui.dialog'),
+      ),
+      'js' => array(
+        drupal_get_path('module', 'avalara_cert') . '/js/avalara_cert.js',
+        "https://app.certcapture.com/gencert2/js?cid=$client_id&key=$registration_key",
+      ),
+    ),
   );
-
-  return $form;
 }
 
 /**
  * Ajax callback: returns AJAX commands when a ship zone is selected.
  */
 function avalara_cert_submit_certificate_refresh($form, $form_state) {
-  return avalara_cert_submit_certificate_ajax($form_state['values']['ship_zone']);
+  if (!empty($form_state['values']['ship_zone'])) {
+    return avalara_cert_submit_certificate_ajax($form_state['values']['ship_zone']);
+  }
+  return array('#type' => 'ajax', '#commands' => array());
 }
 
 /**
