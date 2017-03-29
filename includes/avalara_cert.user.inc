@@ -5,7 +5,6 @@
  */
 function avalara_cert_user_page($account) {
   $account_wrapper = entity_metadata_wrapper('user', $account);
-  $empty_message = t('No tax certificates could be found.');
   $customer_number = '';
 
   // Check if the customer code is not empty.
@@ -13,14 +12,17 @@ function avalara_cert_user_page($account) {
     $customer_number = $account_wrapper->avalara_customer_number->value();
   }
 
-  // If the customer code is not configured, display an empty message.
-  if (empty($customer_number)) {
-    return $empty_message;
-  }
-
   return array(
-    '#theme' => 'avalara_cert_user_certificates',
-    '#customer_number' => $customer_number,
+    'title' => array(
+      '#theme' => 'html_tag',
+      '#tag' => 'h2',
+      '#value' => t('Exemption certificates'),
+    ),
+    'list' => array(
+      '#theme' => 'avalara_cert_user_certificates',
+      '#customer_number' => $customer_number,
+    ),
+    'form' => drupal_get_form('avalara_cert_submit_certificate_form'),
   );
 }
 
@@ -52,7 +54,7 @@ function avalara_cert_delete($certificate_id) {
   }
   try {
     $avalara = avalara_cert_object();
-    $result = $avalara->certificatesDelete($certificate_id);
+    $avalara->certificatesDelete($certificate_id);
     drupal_set_message(t('The tax certificate was successfully deleted.'));
   }
   catch (Exception $e) {
